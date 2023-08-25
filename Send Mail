@@ -1,0 +1,92 @@
+import mysql.connector
+import pandas as pd
+from datetime import datetime
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+from email.mime.text import MIMEText # Add this import
+
+
+db_config = {
+"host": "mm",
+"user": "mer",
+"password": "n",
+"database": "ase"
+}
+
+# MySQL query
+query = """with sg_status as (select mlc_lan_no as LAN,mlc_lead_status_updation_history.created_on as Soft_Bureau_Date
+from mlc_application_details left join mlc_lead_status_updation_history
+on mlc_application_details.id=mlc_lead_status_updation_history.lead_id
+where lead_source IN (494,501) and ops_status!=10 and mlc_application_details.query_status!=132
+AND mlc_lead_status_updation_history.status_type=1 and mlc_lead_status_updation_history.status_id IN (112)
+group by mlc_lan_no)
+select mlc_application_details.id as Lead_Id,mlc_lan_no,
+case when sg_status.Soft_Bureau_Date IS NULL THEN 'Rejected'
+else 'Approved' END AS Lead_Status,
+SUBSTRING_INDEX(page_url, 'utm_param=', -1) AS utm_parameter,utm_source,ops_desc,page_url
+from mlc_application_details
+left join sg_status
+on mlc_application_details.mlc_lan_no=sg_status.LAN
+
+where lead_source IN (494,501) and ops_status!=10 and mlc_application_details.query_status!=132"""
+
+# Connect to MySQL
+connection = mysql.connector.connect(**db_config)
+cursor = connection.cursor()
+
+# Execute the query and fetch data
+cursor.execute(query)
+data = cursor.fetchall()
+
+# Create a Pandas DataFrame
+df = pd.DataFrame(data, columns=cursor.column_names)
+
+# Close MySQL connection
+cursor.close()
+connection.close()
+
+# Export DataFrame to Excel
+excel_filename = f"data_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+df.to_excel(excel_filename, index=False)
+
+to_email_list = ["alokjaiswal200496@gmail.com","kumaravdesh2202@gmail.com","divyanshumnit@gmail.com"]
+to_email_list1 = ["kumaravdesh2202@gmail.com"]
+to_email_list2 = ["divyanshumnit@gmail.com"]
+from_email = "alokjaiswal200496@gmail.com"
+to_email = ",".join(to_email_list)
+subject = "Daily Data Report"
+
+msg = MIMEMultipart()
+msg['From'] = from_email
+msg['To'] = to_email
+msg['Subject'] = subject
+
+body = "Please find the attached daily data report."
+
+msg.attach(MIMEText(body, 'plain'))
+
+attachment = open(excel_filename, "rb")
+part = MIMEBase('application', 'octet-stream')
+part.set_payload((attachment).read())
+encoders.encode_base64(part)
+part.add_header('Content-Disposition', f"attachment; filename= {excel_filename}")
+msg.attach(part)
+
+# SMTP email configuration
+smtp_host = "smtp.gmail.com"
+smtp_port = 587
+smtp_username = "alokjaiswal200496@gmail.com"
+smtp_password = "htltlgbiphisnctn"
+
+# Create SMTP session and send email
+server = smtplib.SMTP(smtp_host, smtp_port)
+server.starttls()
+server.login(smtp_username, smtp_password)
+server.sendmail(from_email, to_email, msg.as_string())
+server.sendmail(from_email, to_email_list1, msg.as_string())
+server.sendmail(from_email, to_email_list2, msg.as_string())
+server.quit()
+
+print("Email sent successfully!")
