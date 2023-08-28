@@ -1,0 +1,33 @@
+import pandas as pd
+import textdistance
+
+# Read the data from the existing sheets
+t1 = pd.read_excel("D:/Book1.xlsx", sheet_name='Sheet1')
+t2 = pd.read_excel("D:/Book1.xlsx", sheet_name='Sheet2')
+
+# Perform your similarity calculations
+t1['max_similarity_score'] = 0
+t1['most_similar_string'] = ""
+ms = 0.7
+
+for index1, row1 in t1.iterrows():
+    max_score = 0
+    most_similar = ""
+
+    for index2, row2 in t2.iterrows():
+        similarity_score = textdistance.jaccard(row1['Customer_Name'].strip().upper(), row2['Name'].strip().upper())
+        
+        if similarity_score > max_score and similarity_score > ms:
+            max_score = similarity_score
+            most_similar = row2['Name']
+
+    if max_score > ms and most_similar:
+        t1.at[index1, 'max_similarity_score'] = max_score
+        t1.at[index1, 'most_similar_string'] = most_similar
+
+# Create a new sheet in the same Excel file to store the results
+with pd.ExcelWriter("D:/Book1.xlsx", engine='openpyxl', mode='a') as writer:
+    t1.to_excel(writer, sheet_name='Results', index=False)
+
+
+print("Results and existing column have been added to the new sheet.")
